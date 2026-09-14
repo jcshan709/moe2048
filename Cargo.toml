@@ -1,0 +1,27 @@
+[package]
+name = "ez2048"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "An asynchronous terminal 2048 game with single-step undo and a cryptographically secure RNG"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["game", "2048", "tui", "terminal", "async"]
+categories = ["command-line-interface", "games"]
+
+[dependencies]
+# Error plumbing for `main` and context on fallible terminal/RNG calls.
+anyhow = "1.0"
+# Terminal: raw mode, alternate screen, key events and styled output.
+crossterm = "0.29"
+# `std_rng` = StdRng (a ChaCha12 CSPRNG), `sys_rng` = the OS entropy source.
+rand = { version = "0.10", default-features = false, features = ["std", "std_rng", "sys_rng"] }
+# Async runtime: `#[tokio::main]`, blocking pool, timers and channels.
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time", "sync"] }
+# Display width of styled text (CJK glyphs occupy two terminal columns).
+unicode-width = "0.2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
