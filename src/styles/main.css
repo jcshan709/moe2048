@@ -1,0 +1,515 @@
+/*
+ * 2048 stylesheet.
+ *
+ * Board geometry in one sentence: tiles are absolutely positioned inside the
+ * board and moved with a percentage `translate`. A tile's own width resolves
+ * `100%` against the containing block, so `calc((100% - 5 * gap) / 4)` is one
+ * cell; inside `translate` a percentage means the tile's *own* width, which is
+ * also one cell. Adding the gap therefore makes `100% + gap` exactly one stride,
+ * and a move animates with no measurement in JavaScript.
+ */
+
+/* ---------------------------------------------------------------- theming -- */
+
+:root {
+  color-scheme: light dark;
+
+  --page-bg: #faf8ef;
+  --page-fg: #776e65;
+  --muted-fg: #9a8f86;
+
+  --board-bg: #bbada0;
+  --cell-bg: #cdc1b4;
+  --overlay-bg: rgb(187 173 160 / 90%);
+
+  --accent: #f59563;
+  --accent-strong: #e07b4a;
+
+  --button-bg: #ffffff;
+  --button-bg-hover: #f0ece4;
+  --button-fg: #776e65;
+  --button-border: #d8cfc6;
+
+  --score-bg: #bbada0;
+  --score-fg: #ffffff;
+
+  --outline: #f59563;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Timings shared with `MOVE_MS` in `src/composables/useGame.ts`. */
+  --move-ms: 120ms;
+  --pop-ms: 150ms;
+
+  --shadow-lg: 0 18px 40px rgb(120 100 80 / 18%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page-bg: #1b1917;
+    --page-fg: #e9e2d9;
+    --muted-fg: #a99e93;
+
+    --board-bg: #3a3532;
+    --cell-bg: #46403c;
+    --overlay-bg: rgb(35 32 30 / 92%);
+
+    --accent: #e8845a;
+    --accent-strong: #f0956c;
+
+    --button-bg: #2b2724;
+    --button-bg-hover: #383330;
+    --button-fg: #ece5dc;
+    --button-border: #4a4340;
+
+    --score-bg: #3a3532;
+    --score-fg: #f4eee6;
+
+    --shadow-lg: 0 18px 40px rgb(0 0 0 / 45%);
+  }
+}
+
+/* ------------------------------------------------------------------ reset -- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--page-fg);
+  font-family: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  /* A desktop window is not a document: dragging a tile must not select text. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--outline);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ shell -- */
+
+.app {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: center;
+  width: min(100%, 33rem);
+  margin: 0 auto;
+  padding: clamp(0.85rem, 2.5vh, 1.5rem) clamp(0.85rem, 4vw, 1.5rem);
+}
+
+.app__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.app__brand {
+  min-width: 0;
+}
+
+.app__title {
+  margin: 0;
+  font-size: clamp(1.85rem, 6vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.app__subtitle {
+  margin: 0.3rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted-fg);
+}
+
+.app__scores {
+  display: flex;
+  gap: 0.5rem;
+  flex: none;
+}
+
+.app__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.app__meta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted-fg);
+}
+
+.app__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.app__error {
+  width: 100%;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
+  background: rgb(224 122 74 / 14%);
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+}
+
+.app__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: center;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--muted-fg);
+  text-align: center;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  margin: 0 0.1em;
+  padding: 0.1em 0.35em;
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-sm);
+  background: var(--button-bg);
+  color: var(--button-fg);
+  font-family: inherit;
+  font-size: 0.9em;
+  text-align: center;
+}
+
+/* ----------------------------------------------------------------- scores -- */
+
+.score {
+  position: relative;
+  min-width: 4.6rem;
+  padding: 0.4rem 0.7rem 0.5rem;
+  border-radius: var(--radius-md);
+  background: var(--score-bg);
+  color: var(--score-fg);
+  text-align: center;
+}
+
+.score__label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.score__value {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+/* ---------------------------------------------------------------- buttons -- */
+
+.button {
+  padding: 0.5rem 0.95rem;
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-md);
+  background: var(--button-bg);
+  color: var(--button-fg);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 80ms ease;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--button-bg-hover);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+/* ------------------------------------------------------------------ board -- */
+
+.board-frame {
+  /* The container whose inline size the board's lengths are measured against. */
+  container-type: inline-size;
+  width: min(100%, 34rem, 68vh);
+  flex: none;
+}
+
+.board {
+  --gap: clamp(6px, 2.4vmin, 14px);
+
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: var(--gap);
+  border-radius: var(--radius-lg);
+  background: var(--board-bg);
+  box-shadow: var(--shadow-lg);
+  touch-action: none;
+  font-size: clamp(0.95rem, 6.4vmin, 2.4rem);
+}
+
+/* Container query units scale the gap and the digits with the board itself. */
+@supports (width: 1cqw) {
+  .board {
+    --gap: clamp(6px, 3cqw, 14px);
+    font-size: clamp(0.95rem, 8.2cqw, 2.4rem);
+  }
+}
+
+.board__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: var(--gap);
+  height: 100%;
+}
+
+.board__cell {
+  border-radius: var(--radius-md);
+  background: var(--cell-bg);
+}
+
+/* ------------------------------------------------------------------- tile -- */
+
+.tile {
+  position: absolute;
+  /* Absolute offsets are measured from the padding edge, so this lands on the
+     grid's first cell. */
+  top: var(--gap);
+  left: var(--gap);
+  width: calc((100% - 5 * var(--gap)) / 4);
+  height: calc((100% - 5 * var(--gap)) / 4);
+  /* `100%` here is the tile's own width, which is one cell: one stride. */
+  transform: translate(
+    calc(var(--col) * (100% + var(--gap))),
+    calc(var(--row) * (100% + var(--gap)))
+  );
+  transition:
+    transform var(--move-ms) ease-in-out,
+    opacity var(--move-ms) linear;
+  z-index: 1;
+}
+
+/* A tile that has been merged away slides to the merge cell and fades, so it
+   sits under the tile that replaces it. */
+.tile--dying {
+  opacity: 0;
+  z-index: 0;
+}
+
+.tile__face {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-md);
+  background: var(--tile-bg, #eee4da);
+  color: var(--tile-fg, #776e65);
+  font-size: 1em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* Value palette. Text flips to light once the background gets dark. */
+.tile__face--2 { --tile-bg: #eee4da; --tile-fg: #776e65; }
+.tile__face--4 { --tile-bg: #ede0c8; --tile-fg: #776e65; }
+.tile__face--8 { --tile-bg: #f2b179; --tile-fg: #f9f6f2; }
+.tile__face--16 { --tile-bg: #f59563; --tile-fg: #f9f6f2; }
+.tile__face--32 { --tile-bg: #f67c5f; --tile-fg: #f9f6f2; }
+.tile__face--64 { --tile-bg: #f65e3b; --tile-fg: #f9f6f2; }
+.tile__face--128 { --tile-bg: #edcf72; --tile-fg: #f9f6f2; }
+.tile__face--256 { --tile-bg: #edcc61; --tile-fg: #f9f6f2; }
+.tile__face--512 { --tile-bg: #edc850; --tile-fg: #f9f6f2; }
+.tile__face--1024 { --tile-bg: #edc53f; --tile-fg: #f9f6f2; }
+.tile__face--2048 {
+  --tile-bg: #edc22e;
+  --tile-fg: #f9f6f2;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 55%) inset;
+}
+/* Past 2048 the values keep growing, so one neutral style covers them all. */
+.tile__face--super { --tile-bg: #3c3a32; --tile-fg: #f9f6f2; }
+
+@media (prefers-color-scheme: dark) {
+  .tile__face--2 { --tile-bg: #4a443f; --tile-fg: #e9e2d9; }
+  .tile__face--4 { --tile-bg: #574e47; --tile-fg: #ece5dc; }
+  .tile__face--super { --tile-bg: #6d655d; --tile-fg: #fdfaf6; }
+}
+
+/* Long numbers need a smaller face to stay inside the tile. */
+.tile__face--len-3 { font-size: 0.82em; }
+.tile__face--len-4 { font-size: 0.68em; }
+.tile__face--len-5 { font-size: 0.56em; }
+
+@keyframes tile-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tile-pop {
+  0% {
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* The scale animations live on the face so they never fight the movement
+   transform on the tile itself. */
+.tile__face--appearing {
+  animation: tile-appear var(--pop-ms) ease-out backwards;
+}
+
+.tile__face--merged {
+  animation: tile-pop var(--pop-ms) ease-out;
+}
+
+@keyframes board-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-1.1%);
+  }
+  40% {
+    transform: translateX(1.1%);
+  }
+  60% {
+    transform: translateX(-0.7%);
+  }
+  80% {
+    transform: translateX(0.7%);
+  }
+}
+
+.board--shaking {
+  animation: board-shake 320ms ease-in-out;
+}
+
+/* ---------------------------------------------------------------- overlay -- */
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1rem;
+  border-radius: inherit;
+  background: var(--overlay-bg);
+  animation: overlay-in 200ms ease-out;
+  text-align: center;
+}
+
+.overlay__title {
+  margin: 0;
+  font-size: clamp(1.3rem, 5.5cqw, 1.9rem);
+  font-weight: 800;
+  color: var(--page-fg);
+}
+
+.overlay__detail {
+  margin: 0;
+  max-width: 22ch;
+  font-size: 0.82rem;
+  color: var(--muted-fg);
+}
+
+.overlay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+/* ------------------------------------------------------------- motion off -- */
+
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .score,
+  .button {
+    transition: none;
+  }
+
+  .tile__face--appearing,
+  .tile__face--merged,
+  .board--shaking,
+  .overlay {
+    animation: none;
+  }
+}
