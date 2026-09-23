@@ -2,7 +2,9 @@
 
 使用 [Rust](https://rust-lang.org/zh-CN/) + [Tauri 2](https://tauri.app/) + [Vue 3](https://cn.vuejs.org/) + [TypeScript](https://www.typescriptlang.org/) 实现的 2048 小游戏。
 
-游戏逻辑全部在 Rust 后端实现，前端仅负责渲染和与用户交互，实现了 MVVM 架构。
+游戏逻辑全部在 Rust 后端实现，前端仅负责渲染和与用户交互，实现了 MVVM 架构。  
+
+注：前端由 DeepSeek 实现
 
 ## 控制方式
 
